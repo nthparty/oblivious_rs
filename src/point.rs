@@ -3,7 +3,6 @@ use curve25519_dalek;
 use rand_core::OsRng;
 use sha2::Sha512;
 use std::option::Option;
-use crate::scalar::Scalar;
 
 
 #[derive(Debug)]
@@ -52,6 +51,9 @@ impl Point {
     }
 
     pub fn hash(bs: &[u8]) -> Point {
+        /*
+        Return point object by hashing supplied slice of bytes.
+         */
 
         let to_dalek =
             curve25519_dalek::ristretto::RistrettoPoint::hash_from_bytes::<Sha512>(bs);

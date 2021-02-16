@@ -1,7 +1,9 @@
 use crate::utils;
 use curve25519_dalek;
 use rand_core::OsRng;
+use sha2::Sha512;
 use std::option::Option;
+use crate::scalar::Scalar;
 
 
 #[derive(Debug)]
@@ -30,7 +32,7 @@ impl Point {
         Point { bytes: rp.to_bytes() }
     }
 
-    pub fn bytes(bs: &[u8]) -> Option<Point> {
+    pub fn from_bytes(bs: &[u8]) -> Option<Point> {
         /*
         Return point obtained by transforming supplied 64 byte hash digest.
          */
@@ -52,7 +54,7 @@ impl Point {
     pub fn hash(bs: &[u8]) -> Point {
 
         let to_dalek =
-            curve25519_dalek::ristretto::RistrettoPoint::hash_from_bytes(bs);
+            curve25519_dalek::ristretto::RistrettoPoint::hash_from_bytes::<Sha512>(bs);
         Point { bytes: to_dalek.compress().to_bytes() }
     }
 
@@ -71,6 +73,52 @@ impl Point {
             Option::Some(
                 Point { bytes: m.compress().to_bytes() }
             )
+        } else {
+            Option::None
+        }
+    }
+}
+
+impl std::ops::Add<Point> for Point {
+    type Output = Option<Self>;
+
+    fn add(self, other: Self) -> Option<Self> {
+
+        let lhs =
+            curve25519_dalek::ristretto::CompressedRistretto::from_slice(&self.bytes);
+        let rhs =
+            curve25519_dalek::ristretto::CompressedRistretto::from_slice(&other.bytes);
+
+        let lhs_decompress = lhs.decompress();
+        let rhs_decompress = rhs.decompress();
+
+        if lhs_decompress.is_some() && rhs_decompress.is_some() {
+            let a = lhs_decompress.unwrap() + rhs_decompress.unwrap();
+            let a_comp = a.compress();
+            Option::Some(Point::new(a_comp.as_bytes()))
+        } else {
+            Option::None
+        }
+    }
+}
+
+impl std::ops::Sub<Point> for Point {
+    type Output = Option<Self>;
+
+    fn sub(self, other: Self) -> Option<Self> {
+
+        let lhs =
+            curve25519_dalek::ristretto::CompressedRistretto::from_slice(&self.bytes);
+        let rhs =
+            curve25519_dalek::ristretto::CompressedRistretto::from_slice(&other.bytes);
+
+        let lhs_decompress = lhs.decompress();
+        let rhs_decompress = rhs.decompress();
+
+        if lhs_decompress.is_some() && rhs_decompress.is_some() {
+            let a = lhs_decompress.unwrap() - rhs_decompress.unwrap();
+            let a_comp = a.compress();
+            Option::Some(Point::new(a_comp.as_bytes()))
         } else {
             Option::None
         }

@@ -1,5 +1,7 @@
 use curve25519_dalek;
 use rand_core::OsRng;
+use sha2::Sha512;
+use crate::point::Point;
 
 
 #[derive(Debug)]
@@ -27,7 +29,7 @@ impl Scalar {
         }
     }
 
-    pub fn bytes(bs: &[u8; 32]) -> Option<Scalar>{
+    pub fn from_bytes(bs: &[u8; 32]) -> Option<Scalar>{
         /*
         Return scalar object obtained by transforming supplied bytes-like
         object if it is possible to do; otherwise, return `None`.
@@ -49,7 +51,7 @@ impl Scalar {
         */
 
         let to_dalek =
-            curve25519_dalek::scalar::Scalar::hash_from_bytes(bs);
+            curve25519_dalek::scalar::Scalar::hash_from_bytes::<Sha512>(bs);
         Scalar { bytes: to_dalek.to_bytes() }
     }
 
@@ -70,3 +72,46 @@ impl Scalar {
         }
     }
 }
+
+impl std::ops::Mul<Scalar> for Scalar {
+    type Output = Option<Self>;
+
+    fn mul(self, rhs: Self) -> Option<Self> {
+
+        let lhs =
+            curve25519_dalek::scalar::Scalar::from_canonical_bytes(self.bytes);
+        let rhs =
+            curve25519_dalek::scalar::Scalar::from_canonical_bytes(rhs.bytes);
+
+        if lhs.is_some() && rhs.is_some() {
+            let out_s = lhs.unwrap() * rhs.unwrap();
+            let bs = out_s.to_bytes();
+            Option::Some(Scalar::new(&bs))
+        } else {
+            Option::None
+        }
+    }
+}
+
+impl std::ops::Mul<Point> for Scalar {
+    type Output = Option<Point>;
+
+    fn mul(self, rhs: Point) -> Option<Point> {
+
+        let lhs =
+            curve25519_dalek::scalar::Scalar::from_canonical_bytes(self.bytes);
+        let rhs =
+            curve25519_dalek::ristretto::CompressedRistretto::from_slice(&rhs.bytes);
+        let rhs_decompressed = rhs.decompress();
+
+        if lhs.is_some() && rhs_decompressed.is_some() {
+            let out_p = lhs.unwrap() * rhs_decompressed.unwrap();
+            let bs = out_p.compress().to_bytes();
+            Option::Some(Point::new(&bs))
+        } else {
+            Option::None
+        }
+    }
+}
+
+

@@ -7,3 +7,4 @@ edition = "2018"
 [dependencies]
 curve25519-dalek = "3"
 rand_core = "0.5.0"
+sha2 = "0.9.3"

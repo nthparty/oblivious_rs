@@ -4,28 +4,22 @@ use sha2::Sha512;
 use crate::point::Point;
 
 
-#[derive(Debug)]
 pub struct Scalar {
-    pub bytes: [u8; 32]
+    pub bytes: [u8; 32],
+    pub dalek: curve25519_dalek::scalar::Scalar
 }
 
 impl Scalar {
-
-    pub fn new(b: &[u8; 32]) -> Scalar {
-        /*
-        Return scalar object corresponding to supplied bytes-like object.
-        No checking is performed to confirm that the bytes-like object
-        is a valid scalar.
-        */
-        Scalar { bytes: *b }
-    }
 
     pub fn random() -> Scalar {
         /*
         Return random non-zero scalar.
          */
+
+        let rs = curve25519_dalek::scalar::Scalar::random(&mut OsRng);
         Scalar {
-            bytes: curve25519_dalek::scalar::Scalar::random(&mut OsRng).to_bytes()
+            bytes: *rs.as_bytes(),
+            dalek: rs
         }
     }
 
@@ -39,7 +33,8 @@ impl Scalar {
             curve25519_dalek::scalar::Scalar::from_canonical_bytes(*bs);
 
         if to_dalek.is_some() {
-            Option::Some( Scalar { bytes: to_dalek.unwrap().to_bytes() })
+            let uw = to_dalek.unwrap();
+            Option::Some( Scalar { bytes: *uw.as_bytes(), dalek: uw} )
         } else {
             Option::None
         }
@@ -52,64 +47,145 @@ impl Scalar {
 
         let to_dalek =
             curve25519_dalek::scalar::Scalar::hash_from_bytes::<Sha512>(bs);
-        Scalar { bytes: to_dalek.to_bytes() }
+        Scalar {
+            bytes: *to_dalek.as_bytes(),
+            dalek: to_dalek
+        }
     }
 
-    pub fn inverse(&self) -> Option<Scalar> {
+    pub fn inverse(&self) -> Scalar{
         /*
         Return inverse if bytes of this scalar represent a valid scalar;
         otherwise, return None.
          */
 
-        let to_dalek =
-            curve25519_dalek::scalar::Scalar::from_canonical_bytes(self.bytes);
-
-        if to_dalek.is_some() {
-            let inv = to_dalek.unwrap().invert();
-            Option::Some( Scalar { bytes: inv.to_bytes() })
-        } else {
-            Option::None
+        let inv = self.dalek.invert();
+        Scalar {
+            bytes: *inv.as_bytes(),
+            dalek: inv
         }
+
     }
 }
 
+impl std::fmt::Debug for Scalar {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "Scalar: {:?}", self.bytes)
+    }
+}
+
+// Scalar * Scalar
 impl std::ops::Mul<Scalar> for Scalar {
-    type Output = Option<Self>;
+    type Output = Self;
 
-    fn mul(self, rhs: Self) -> Option<Self> {
+    fn mul(self, rhs: Self) -> Self {
 
-        let lhs =
-            curve25519_dalek::scalar::Scalar::from_canonical_bytes(self.bytes);
-        let rhs =
-            curve25519_dalek::scalar::Scalar::from_canonical_bytes(rhs.bytes);
-
-        if lhs.is_some() && rhs.is_some() {
-            let out_s = lhs.unwrap() * rhs.unwrap();
-            let bs = out_s.to_bytes();
-            Option::Some(Scalar::new(&bs))
-        } else {
-            Option::None
+        let out_s = self.dalek * rhs.dalek;
+        Scalar {
+            bytes: *out_s.as_bytes(),
+            dalek: out_s
         }
     }
 }
 
+// Scalar * &Scalar
+impl <'b> std::ops::Mul<&'b Scalar> for Scalar {
+    type Output = Scalar;
+
+    fn mul(self, rhs: &'b Scalar) -> Scalar {
+
+        let out_s = &self.dalek * rhs.dalek;
+        Scalar {
+            bytes: *out_s.as_bytes(),
+            dalek: out_s
+        }
+    }
+}
+
+// &Scalar * Scalar
+impl <'a> std::ops::Mul<Scalar> for &'a Scalar {
+    type Output = Scalar;
+
+    fn mul(self, rhs: Scalar) -> Scalar {
+
+        let out_s = self.dalek * rhs.dalek;
+        Scalar {
+            bytes: *out_s.as_bytes(),
+            dalek: out_s
+        }
+    }
+}
+
+// &Scalar * &Scalar
+impl <'a, 'b> std::ops::Mul<&'b Scalar> for &'a Scalar {
+    type Output = Scalar;
+
+    fn mul(self, rhs: &'b Scalar) -> Scalar {
+
+        let out_s = self.dalek * rhs.dalek;
+        Scalar {
+            bytes: *out_s.as_bytes(),
+            dalek: out_s
+        }
+    }
+}
+
+// Scalar * Point
 impl std::ops::Mul<Point> for Scalar {
-    type Output = Option<Point>;
+    type Output = Point;
 
-    fn mul(self, rhs: Point) -> Option<Point> {
+    fn mul(self, rhs: Point) -> Point {
 
-        let lhs =
-            curve25519_dalek::scalar::Scalar::from_canonical_bytes(self.bytes);
-        let rhs =
-            curve25519_dalek::ristretto::CompressedRistretto::from_slice(&rhs.bytes);
-        let rhs_decompressed = rhs.decompress();
+        let m = self.dalek * rhs.dalek;
+        let bs = &m.compress().to_bytes();
+        Point {
+            bytes: *bs,
+            dalek: m
+        }
+    }
+}
 
-        if lhs.is_some() && rhs_decompressed.is_some() {
-            let out_p = lhs.unwrap() * rhs_decompressed.unwrap();
-            let bs = out_p.compress().to_bytes();
-            Option::Some(Point::new(&bs))
-        } else {
-            Option::None
+// Scalar * &Point
+impl <'b> std::ops::Mul<&'b Point> for Scalar {
+    type Output = Point;
+
+    fn mul(self, rhs: &'b Point) -> Point {
+
+        let m = &self.dalek * rhs.dalek;
+        let bs = &m.compress().to_bytes();
+        Point {
+            bytes: *bs,
+            dalek: m
+        }
+    }
+}
+
+// &Scalar * Point
+impl <'a> std::ops::Mul<Point> for &'a Scalar {
+    type Output = Point;
+
+    fn mul(self, rhs: Point) -> Point {
+
+        let m = self.dalek * rhs.dalek;
+        let bs = &m.compress().to_bytes();
+        Point {
+            bytes: *bs,
+            dalek: m
+        }
+    }
+}
+
+// &Scalar * &Point
+impl <'a, 'b> std::ops::Mul<&'b Point> for &'a Scalar {
+    type Output = Point;
+
+    fn mul(self, rhs: &'b Point) -> Point {
+
+        let m = self.dalek * rhs.dalek;
+        let bs = &m.compress().to_bytes();
+        Point {
+            bytes: *bs,
+            dalek: m
         }
     }
 }

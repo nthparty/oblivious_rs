@@ -1,6 +1,7 @@
 use crate::utils;
 use crate::scalar::Scalar;
-use curve25519_dalek;
+use curve25519_dalek::ristretto::{RistrettoPoint, CompressedRistretto};
+use curve25519_dalek::constants::RISTRETTO_BASEPOINT_POINT;
 use rand_core::OsRng;
 use sha2::Sha512;
 use std::option::Option;
@@ -19,7 +20,7 @@ impl Point {
          */
 
         let rp =
-            curve25519_dalek::ristretto::RistrettoPoint::random(&mut OsRng);
+            RistrettoPoint::random(&mut OsRng);
         let bs = &rp.compress().to_bytes();
         Point {
             bytes: *bs,
@@ -29,25 +30,41 @@ impl Point {
 
     pub fn from_bytes(bs: &[u8]) -> Option<Point> {
         /*
-        Return point obtained by transforming supplied 64 byte hash digest.
+        Return point obtained by transforming supplied 64 byte hash digest or 32 byte array.
          */
 
-        let to_array = utils::to_array_64(bs);
-        if to_array.is_some() {
+        if bs.len() == 64 {
+            let to_array = utils::to_array_64(bs);
             let rp =
-                curve25519_dalek::ristretto::RistrettoPoint::from_uniform_bytes(
+                RistrettoPoint::from_uniform_bytes(
                     &to_array.unwrap()
                 );
             let bs = &rp.compress().to_bytes();
-            Option::Some(
+            return Option::Some(
                 Point {
                     bytes: *bs,
                     dalek: rp
                 }
-            )
-        } else {
-            Option::None
+            );
         }
+
+        if bs.len() == 32 {
+            let to_array = utils::to_array_32(bs);
+            let crp =
+                CompressedRistretto::from_slice(
+                    &to_array.unwrap()
+                );
+            let rp = &crp.decompress().unwrap();
+            let bs = &crp.to_bytes();
+            return Option::Some(
+                Point {
+                    bytes: *bs,
+                    dalek: *rp
+                }
+            );
+        }
+
+        Option::None
     }
 
     pub fn hash(bs: &[u8]) -> Point {
@@ -56,7 +73,7 @@ impl Point {
          */
 
         let to_dalek =
-            curve25519_dalek::ristretto::RistrettoPoint::hash_from_bytes::<Sha512>(bs);
+            RistrettoPoint::hash_from_bytes::<Sha512>(bs);
         let bs = &to_dalek.compress().to_bytes();
         Point {
             bytes: *bs,
@@ -70,7 +87,7 @@ impl Point {
         valid; otherwise, return `None`.
          */
 
-        let m = s.dalek * curve25519_dalek::constants::RISTRETTO_BASEPOINT_POINT;
+        let m = s.dalek * RISTRETTO_BASEPOINT_POINT;
         let bs = &m.compress().to_bytes();
         Point {
             bytes: *bs,

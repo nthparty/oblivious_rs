@@ -4,8 +4,9 @@ Rust implementation of the python [oblivious](https://github.com/nthparty/oblivi
 
 ## Purpose
 
-This library is a thin wrapper over the [curve25519-dalek](https://github.com/dalek-cryptography/curve25519-dalek) library, and is designed to streamline \
-NthParty's OPRF and OT protocols across implementations in different languages.
+This library is a thin wrapper over the [curve25519-dalek](https://github.com/dalek-cryptography/curve25519-dalek) library, and is designed to \
+streamline NthParty's OPRF and OT protocols across implementations in different \
+languages.
 
 ## Package Installation and Usage
 
